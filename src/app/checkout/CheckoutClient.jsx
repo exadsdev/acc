@@ -68,8 +68,8 @@ function buildPromptPayPayload({
 
 /** ===== Configs ===== */
 const PROMPTPAY_TARGET = {
-  mobile: "0812345678",
-  merchantName: "pg Phone",
+  mobile: "1969800077553",
+  merchantName: "Penapa Chongngam",
   city: "Bangkok",
 };
 
@@ -467,10 +467,10 @@ export default function CheckoutClient() {
                         <ul className="list-unstyled bank-list mb-0 mt-2">
                           <li className="bank-item text-center">
                             <div>ธนาคารกสิกรไทย</div>
-                            <div>ชื่อบัญชี: ชื่อ - นามสกุล</div>
+                            <div>ชื่อบัญชี:K. Penapa Chongngam</div>
                             <div>
                               เลขที่บัญชี <br />
-                              123-4-56789-0
+                             099 14274 22
                             </div>
                           </li>
                         </ul>
