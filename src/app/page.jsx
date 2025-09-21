@@ -104,9 +104,7 @@ export default function HomePage() {
       <section className="container py-5">
         <div className="d-flex align-items-center justify-content-between mb-3">
           <h2 className="h4 mb-0">แพ็กเกจยอดนิยม</h2>
-          <Link className="btn btn-sm btn-outline-primary" href="/products">
-            ดูทั้งหมด
-          </Link>
+        
         </div>
 
         <div className="row g-4">
