@@ -1,4 +1,3 @@
-// app/waiting/page.jsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +16,9 @@ import "bootstrap/dist/css/bootstrap.min.css";
  */
 
 const BASE_URL = "https://accfbapi.accfb-ads.com";
+const LINE_URL =
+  process.env.NEXT_PUBLIC_LINE_URL ||
+  "https://lin.ee/your-line-link"; // <- ใส่ลิงก์ LINE OA ที่ถูกต้อง
 
 /** เรียก /get แล้วคืนเป็นอาเรย์ */
 async function fetchAllOrders() {
@@ -39,6 +41,14 @@ function splitDetelsToBlocks(detels) {
     .filter(Boolean);
 }
 
+// แปลงวินาที -> mm:ss
+function formatTime(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+}
+
 export default function WaitingPage() {
   const router = useRouter();
   const { status, data: session } = useSession();
@@ -49,6 +59,30 @@ export default function WaitingPage() {
   const [err, setErr] = useState("");
   const [myOrders, setMyOrders] = useState([]); // orders ที่ email ตรงกับผู้ใช้
   const [lastUpdated, setLastUpdated] = useState("");
+
+  // ===== Countdown 10 นาที (อัปเดตทุกวินาที) =====
+  const [remaining, setRemaining] = useState(600); // 600s = 10 นาที
+  const endAtRef = useRef(null); // ms timestamp
+  useEffect(() => {
+    // ใช้ sessionStorage ให้คงอยู่ระหว่างรีเฟรช/เปลี่ยนเส้นทางภายในแท็บเดียว
+    const key = "waiting_countdown_endAt";
+    let endAt = Number(sessionStorage.getItem(key) || 0);
+
+    if (!endAt || endAt < Date.now()) {
+      endAt = Date.now() + 10 * 60 * 1000; // เริ่มใหม่ 10 นาที
+      sessionStorage.setItem(key, String(endAt));
+    }
+    endAtRef.current = endAt;
+
+    const tick = () => {
+      const left = (endAtRef.current - Date.now()) / 1000;
+      setRemaining(left);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, []);
+  // ==============================================
 
   // เลื่อนลงล่างเมื่อมีข้อความยาว
   const listRef = useRef(null);
@@ -89,7 +123,6 @@ export default function WaitingPage() {
   // โหลดครั้งแรก + poll ทุก 10 วินาที
   useEffect(() => {
     if (status !== "authenticated") return;
-    let alive = true;
     let timer;
     const run = async () => {
       await loadMine();
@@ -97,7 +130,6 @@ export default function WaitingPage() {
     run();
     timer = setInterval(run, 10000);
     return () => {
-      alive = false;
       if (timer) clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +139,6 @@ export default function WaitingPage() {
   const isAuthed = status === "authenticated";
 
   // สร้าง “รายการข้อความ” จาก detels ของทุกคำสั่งซื้อของผู้ใช้
-  // ใหม่สุดมาก่อน (เพราะ /get ส่งมาใหม่สุดก่อนอยู่แล้ว)
   const messageItems = useMemo(() => {
     const items = [];
     for (const o of myOrders) {
@@ -167,9 +198,7 @@ export default function WaitingPage() {
                   )}
                 </div>
                 {err ? <div className="alert alert-danger small mt-2 mb-0">{err}</div> : null}
-                <div className="text-muted small mt-2">
-                  อัปเดตล่าสุด: {lastUpdated || "—"}
-                </div>
+                <div className="text-muted small mt-2">อัปเดตล่าสุด: {lastUpdated || "—"}</div>
               </div>
             </div>
 
@@ -195,12 +224,53 @@ export default function WaitingPage() {
             </div>
           </div>
 
-          {/* ขวา: กล่องข้อความจาก detels (ทุกออเดอร์ของผู้ใช้) */}
+          {/* ขวา: กล่องข้อความ + แถบแจ้ง (เขียว) + ตัวนับ (เหลือง) */}
           <div className="col-lg-7">
             <div className="card shadow-sm h-100">
               <div className="card-body d-flex flex-column" style={{ minHeight: 520 }}>
-                <h2 className="h6 mb-3">ข้อความจากแอดมิน (อิงจาก detels)</h2>
+                {/* แถบสีเขียว: ข้อความ + ปุ่ม LINE ไอคอนเล็ก */}
+                <div className="alert alert-success d-flex align-items-center justify-content-between mb-3">
+                  <div className="me-3">
+                    <div className="fw-semibold">🕒 กรุณารอ ปกติระบบทำรายการไม่เกิน 10 นาที</div>
+                    <div>หากเกินเวลาดังกล่าวกรุณาติดต่อ Admin</div>
+                  </div>
+                  <a
+                    href={LINE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-success btn-sm d-flex align-items-center"
+                    title="ติดต่อ LINE"
+                  >
+                    {/* ไอคอน LINE แบบ SVG ขนาดเล็ก */}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 36 36"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M18 4C9.716 4 3 9.82 3 16.998c0 4.182 2.427 7.875 6.153 10.177-.208.778-1.34 5-1.386 5.345-.072.535.195.528.41.384.168-.111 3.721-2.509 5.221-3.524.465.066.94.102 1.429.102 8.284 0 15-5.82 15-12.998S26.284 4 18 4Z"
+                        fill="currentColor"
+                      />
+                      <path
+                        d="M10.5 15.25h2v6.5h-2zm4.5 0h2v6.5h-2zm4.5 0h2v6.5h-2zm4.5 0h2v6.5h-2z"
+                        fill="#fff"
+                      />
+                    </svg>
+                    <span className="ms-2">LINE</span>
+                  </a>
+                </div>
 
+                {/* แถบสีเหลือง: นับถอยหลัง 10 นาที (อัปเดตทุกวินาที) */}
+                <div className="alert alert-warning d-flex align-items-center justify-content-between">
+                  <div className="fw-semibold">เวลาที่เหลือ</div>
+                  <div className="fs-5 fw-bold">
+                    {formatTime(remaining)}
+                  </div>
+                </div>
+
+                {/* กล่องข้อความ detels */}
                 <div
                   ref={listRef}
                   className="flex-grow-1 mb-3 border rounded p-3 bg-light"
@@ -216,9 +286,7 @@ export default function WaitingPage() {
                     messageItems.map((item) => (
                       <div key={item.order_no} className="mb-4">
                         <div className="d-flex align-items-center mb-2">
-                          <div className="badge bg-secondary me-2">
-                            {item.order_no}
-                          </div>
+                          <div className="badge bg-secondary me-2">{item.order_no}</div>
                           {item.when ? (
                             <div className="small text-muted">
                               อัปเดตเมื่อ {new Date(item.when).toLocaleString()}
