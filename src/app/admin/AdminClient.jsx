@@ -1,4 +1,3 @@
-// app/admin/page.jsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -6,12 +5,11 @@ import Link from "next/link";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 /**
- * Admin Page (fixed “delete” behavior)
+ * Admin Page (works with backend /messages/:id and /status/:id)
  *
- * - Column "Order No" is replaced by Slip thumbnail.
- * - "Delete" now becomes a **soft delete**: we mark the order as "DELETED" (or "CANCELLED" fallback)
- *   and the table **filters out** both DELETED and CANCELLED records on load & refresh.
- *   This solves the issue where items reappear after refresh when the API doesn't really delete rows.
+ * - Slip thumbnail column
+ * - Soft delete -> PATCH status to DELETED (fallback CANCELLED)
+ * - Save admin notes -> PUT /messages/:id with { detels }
  *
  * ENV (Next.js):
  *   NEXT_PUBLIC_ORDERS_API=https://accfbapi.accfb-ads.com
@@ -42,10 +40,10 @@ function filterVisibleOrders(list) {
   );
 }
 
-/** Save admin message into detels */
-async function saveDetels(text) {
-  const res = await fetch(`${MESSAGES_API}/add`, {
-    method: "POST",
+/** Save admin message into detels of specific order */
+async function saveDetels(orderId, text) {
+  const res = await fetch(`${MESSAGES_API}/messages/${orderId}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ detels: text }),
   });
@@ -157,11 +155,14 @@ export default function AdminPage() {
   const handleSaveMessage = async () => {
     const text = (message || "").trim();
     if (!text) return alert("กรุณากรอกข้อความ");
+    if (!targetOrder?.id) return alert("ไม่พบรหัสคำสั่งซื้อ");
     setSaving(true);
     try {
-      await saveDetels(text);
+      await saveDetels(targetOrder.id, text);
       setShowModal(false);
       setMessage("");
+      // Optional: refresh orders in case detels is displayed somewhere else
+      // await loadOrders();
       alert("บันทึกข้อความเรียบร้อยแล้ว");
     } catch (e) {
       alert(`บันทึกข้อความไม่สำเร็จ: ${e.message || e}`);
@@ -367,8 +368,8 @@ export default function AdminPage() {
               </div>
               <div className="modal-body">
                 <div className="mb-2 small text-muted">
-                  จะถูกบันทึกไปที่ <code>{MESSAGES_API}/add</code> เป็นฟิลด์{" "}
-                  <code>detels</code> (ข้อความยาว)
+                  จะถูกบันทึกไปที่ <code>{MESSAGES_API}/messages/{targetOrder?.id ?? "ID"}</code>{" "}
+                  เป็นฟิลด์ <code>detels</code>
                 </div>
                 <textarea
                   className="form-control"
